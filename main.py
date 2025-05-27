@@ -6,6 +6,7 @@ import pandas as pd
 import torch
 import os
 import pickle
+from collections import defaultdict
 
 def load_reviews(dataset_path='train.csv', cache_path="reviews.pkl"):
     reviews = []
@@ -51,6 +52,34 @@ def load_embedding(embedder, reviews, cache_path="embedding.npy"):
         embedding = embedder.encode([review["full_text"] for review in reviews], convert_to_numpy=True)
         np.save(cache_path, embedding)
     return embedding
+
+def get_relation(dataset_path='train.csv', accommodations_path = 'accommodations.csv', cache_path="relations.pkl"):
+    if os.path.exists(cache_path):
+        # Load if there is the cache document for relations from accommodation ids to reviews exists
+        with open(cache_path, "rb") as f:
+            id_to_reviews = pickle.load(f)
+    else:
+        df = pd.read_csv(dataset_path)
+        id_to_reviews = defaultdict(list)
+        for idx, aid in enumerate(df['accommodation_id']):
+            id_to_reviews[aid].append(idx)
+        with open(cache_path, "wb") as f:
+            pickle.dump(id_to_reviews, f)
+    if os.path.exists(accommodations_path):
+        # Load if there is the cache document for characteristics of accommodations exists
+        accommodations = pd.read_csv(accommodations_path)
+    else:
+        df = pd.read_csv(dataset_path)
+        accommodations = df.groupby('accommodation_id').agg({
+            'accommodation_score': 'first',
+            'accommodation_star_rating': 'first',
+            'location_is_ski': 'first',
+            'location_is_beach': 'first',
+            'location_is_city_center': 'first',
+            'accommodation_type': 'first'
+        }).reset_index()
+        accommodations.to_csv(accommodations_path, index=False)
+    return id_to_reviews, accommodations
 
 def main():
     # Multithreading, in order to accelerate the embedding process.
@@ -98,4 +127,5 @@ def main():
     print(response_a['message']['content'])
 
 if __name__ == "__main__":
+    get_relation()
     main()
