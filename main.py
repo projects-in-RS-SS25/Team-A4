@@ -135,7 +135,7 @@ def generate(nationality, type, star, ski, beach, center, score):
     distances, indices = index.search(np.array([query_embedding]), min(20, len(review_indexes)))
     heap = []
     for i, idx in enumerate(indices[0]):
-        heapq.heappush(heap, (distances[0][i] * (1-((math.log10(1+reviews[review_indexes[idx]]['helpful'])) / ((math.log10(1+91))))), idx))
+        heapq.heappush(heap, (distances[0][i] * (1-0.5*((math.log10(1+reviews[review_indexes[idx]]['helpful'])) / ((math.log10(1+91))))), idx))
     pairs = heapq.nsmallest(min(5, len(review_indexes)), heap)
     results = "\n"
     for (weight, idx) in pairs:
