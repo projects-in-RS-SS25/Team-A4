@@ -1,3 +1,5 @@
+import math
+
 from sentence_transformers import SentenceTransformer
 import ollama
 import faiss
@@ -7,6 +9,7 @@ import torch
 import os
 import pickle
 from collections import defaultdict
+import heapq
 
 def load_reviews(dataset_path='train.csv', cache_path="reviews.pkl"):
     reviews = []
@@ -129,9 +132,13 @@ def generate(nationality, type, star, ski, beach, center, score):
     if len(review_indexes) == 0:
         print("No accommodation that fits your need found... So we can't give you any recommendation")
         return
-    distances, indices = index.search(np.array([query_embedding]), min(5, len(review_indexes)))
-    results = "\n"
+    distances, indices = index.search(np.array([query_embedding]), min(20, len(review_indexes)))
+    heap = []
     for i, idx in enumerate(indices[0]):
+        heapq.heappush(heap, (distances[0][i] * (1-((math.log10(1+reviews[review_indexes[idx]]['helpful'])) / ((math.log10(1+91))))), idx))
+    pairs = heapq.nsmallest(min(5, len(review_indexes)), heap)
+    results = "\n"
+    for (weight, idx) in pairs:
         result = reviews[review_indexes[idx]]
         results = results + f"Accommodation ID: {result['accommodation_id']} Review: {result['full_text']}\n"
     # Create the prompt for LLM
@@ -159,7 +166,7 @@ def generate(nationality, type, star, ski, beach, center, score):
     ])
     print(response_a['message']['content'])
 def main():
-    generate(None, None, 4, 0, 1, 0, 8)
+    generate("Germany", "Hotel", 4, 0, -1, 0, 8)
 if __name__ == "__main__":
     get_relation()
     main()
