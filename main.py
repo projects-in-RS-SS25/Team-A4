@@ -120,7 +120,7 @@ def weight_calculation(indices, distances, reviews, review_indexes, guest_type, 
         accommodation = reviews[review_indexes[idx]]["accommodation_id"]
         if gc[(gc['guest_country'] == guest_country) & (gc["accommodation_id"] == accommodation)].empty:
             guest_country_relation = 0
-        if gt[(gt['guest_type'] == guest_country) & (gt["accommodation_id"] == accommodation)].empty:
+        if gt[(gt['guest_type'] == guest_type) & (gt["accommodation_id"] == accommodation)].empty:
             guest_type_relation = 0
         if guest_country_relation == guest_type_relation == 0:
             break
