@@ -91,7 +91,7 @@ def embedder_filtering(embedding, id_to_reviews, accommodations, nationality, ac
     if nationality is not None:
         qualified_accommodations = qualified_accommodations[qualified_accommodations['accommodation_country'] == nationality]
     if accomodation_type is not None:
-        qualified_accommodations = qualified_accommodations[qualified_accommodations['accommodation_type'] == type]
+        qualified_accommodations = qualified_accommodations[qualified_accommodations['accommodation_type'] == accomodation_type]
     if star != -1:
         qualified_accommodations = qualified_accommodations[qualified_accommodations['accommodation_star_rating'] >= star]
     if ski != -1:
@@ -110,7 +110,33 @@ def embedder_filtering(embedding, id_to_reviews, accommodations, nationality, ac
     embedding = embedding[review_indexes]
     return embedding, review_indexes
 
-def generate(nationality, type, star, ski, beach, center, score):
+def weight_calculation(indices, distances, reviews, review_indexes, guest_type, guest_country, months, nights, guest_country_relations="guest_country_accommodation.csv", guest_type_relations="guest_type_accommodation.csv"):
+    heap = []
+    guest_country_relation = 1
+    guest_type_relation = 1
+    gc = pd.read_csv(guest_country_relations)
+    gt = pd.read_csv(guest_type_relations)
+    for i, idx in enumerate(indices):
+        accommodation = reviews[review_indexes[idx]]["accommodation_id"]
+        if gc[(gc['guest_country'] == guest_country) & (gc["accommodation_id"] == accommodation)].empty:
+            guest_country_relation = 0
+        if gt[(gt['guest_type'] == guest_country) & (gt["accommodation_id"] == accommodation)].empty:
+            guest_type_relation = 0
+        if guest_country_relation == guest_type_relation == 0:
+            break
+    for i, idx in enumerate(indices):
+        helpful_votes = reviews[review_indexes[idx]]['helpful']
+        log_scaled_helpful = math.log10(1 + helpful_votes) / math.log10(1 + 91)
+        country_factor = 1 if guest_country_relation == 0 else gc[(gc['guest_country'] == guest_country) & (gc["accommodation_id"] == reviews[review_indexes[idx]]["accommodation_id"])].iloc[0]['avg_score']
+        type_factor = 1 if guest_type_relation == 0 else gt[(gt['guest_type'] == guest_type) & (gt["accommodation_id"] == reviews[review_indexes[idx]]["accommodation_id"])].iloc[0]['avg_score']
+        month_factor = 1 if months == -1 else ((3 - max(abs(reviews[review_indexes[idx]]["month"] - months), 3)) / 6) + 0.5
+        night_factor = 1 if nights == -1 else ((2 - max(abs(reviews[review_indexes[idx]]["room_nights"] - nights), 2)) / 4) + 0.5
+        weight = distances[0][i] * (1 - 0.5 * log_scaled_helpful) * (10 - country_factor) * (10 - type_factor) * month_factor * night_factor
+        heapq.heappush(heap, (weight, idx))
+    return heap
+
+
+def generate(nationality, type, star, ski, beach, center, score, guest_type, guest_country, months, nights):
     # Multithreading, in order to accelerate the embedding process:
     # torch.set_num_threads(8)
     embedder = SentenceTransformer("all-MiniLM-L6-v2")
@@ -134,12 +160,7 @@ def generate(nationality, type, star, ski, beach, center, score):
         return
     log_helpful_denom = math.log10(1 + 91)
     distances, indices = index.search(np.array([query_embedding]), min(20, len(review_indexes)))
-    heap = []
-    for i, idx in enumerate(indices[0]):
-        helpful_votes = reviews[review_indexes[idx]]['helpful']
-        log_scaled_helpful = math.log10(1 + helpful_votes) / log_helpful_denom
-        weight = distances[0][i] * (1 - 0.5 * log_scaled_helpful)
-        heapq.heappush(heap, (weight, idx))
+    heap = weight_calculation(indices[0], distances, reviews, review_indexes, guest_type, guest_country, months, nights)
     pairs = heapq.nsmallest(min(5, len(review_indexes)), heap)
     results = "\n"
     for (weight, idx) in pairs:
@@ -170,7 +191,7 @@ def generate(nationality, type, star, ski, beach, center, score):
     ])
     print(response_a['message']['content'])
 def main():
-    generate("Germany", "Hotel", 4, 0, -1, 0, 8)
+    generate("Spain", "Hotel", 4, 0, -1, 0, 8, "Couple", "Bemab", 6, 7)
 
 
 
