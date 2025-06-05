@@ -159,18 +159,25 @@ def weight_calculation(indices, distances, reviews, review_indexes, guest_type, 
 def get_top_k(reviews, heap, review_indexes, k):
     dict_rankcount = {}
     heap_avgfirst = []
-    for (weight, idx) in heap:
+    for rank, (weight, idx) in enumerate(heap):
         result = reviews[review_indexes[idx]]
         aid = result['accommodation_id']
-        ranksum, count, first = dict_rankcount.get(aid, (0, 0, -1))
-        dict_rankcount[aid] = (ranksum+idx, count+1, idx if first == -1 else first)
-    for id, (ranksum, count, first) in dict_rankcount.items():
-        heapq.heappush(heap_avgfirst, (ranksum / count, first))
+        ranksum, first, second, third = dict_rankcount.get(aid, (0, -1, -1, -1))
+        dict_rankcount[aid] = (ranksum + len(heap) - rank, idx if first == -1 else first, idx if (first != -1 and second == -1) else second, idx if (first != -1 and second != -1 and third == -1) else third)
+    for id, (ranksum, first, second, third) in dict_rankcount.items():
+        heapq.heappush(heap_avgfirst, (ranksum, first, second, third))
     top_k = heapq.nsmallest(min(k, len(heap_avgfirst)), heap_avgfirst)
     results = "\n"
-    for (avg, first) in top_k:
-        result = reviews[review_indexes[first]]
-        results = results + f"Accommodation ID: {result['accommodation_id']} Review: {result['full_text']}\n"
+    for (ranksum, first, second, third) in top_k:
+        if first != -1:
+            result = reviews[review_indexes[first]]
+            results = results + f"Accommodation ID: {result['accommodation_id']} Review: {result['full_text']}\n"
+        if second != -1:
+            result = reviews[review_indexes[second]]
+            results = results + f"Accommodation ID: {result['accommodation_id']} Review: {result['full_text']}\n"
+        if third != -1:
+            result = reviews[review_indexes[third]]
+            results = results + f"Accommodation ID: {result['accommodation_id']} Review: {result['full_text']}\n"
     return results
 
 
@@ -196,7 +203,7 @@ def generate(nationality, type, star, ski, beach, center, score, guest_type, gue
     if len(review_indexes) == 0:
         print("No accommodation that fits your need found... So we can't give you any recommendation.")
         return
-    distances, indices = index.search(np.array([query_embedding]), min(100, len(review_indexes)))
+    distances, indices = index.search(np.array([query_embedding]), len(review_indexes))
     heap = weight_calculation(indices[0], distances, reviews, review_indexes, guest_type, guest_country, months, nights)
     results = get_top_k(reviews, heap, review_indexes, min(5, len(review_indexes)))
     # Create the prompt for LLM:
@@ -224,7 +231,7 @@ def generate(nationality, type, star, ski, beach, center, score, guest_type, gue
     ])
     print(response_a['message']['content'])
 def main():
-    generate("Spain", "Hotel", 4, 0, 1, 0, 8, "Couple", "Bemab", 6, 7)
+    generate("Spain", "Hotel", 3, 0, 1, 0, 8, "Couple", "Bemab", 6, 7)
 
 
 
