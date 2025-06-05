@@ -1,5 +1,4 @@
 import math
-
 from sentence_transformers import SentenceTransformer
 import ollama
 import faiss
@@ -85,6 +84,28 @@ def get_relation(dataset_path='train.csv', accommodations_path='accommodations.c
         accommodations.to_csv(accommodations_path, index=False)
     return id_to_reviews, accommodations
 
+def triplet_table(input_csv='train.csv', gc_csv='guest_country_accommodation.csv', gt_csv='guest_type_accommodation.csv'):
+    if os.path.exists(gc_csv) and os.path.exists(gt_csv):
+        gc = pd.read_csv(gc_csv)
+        gt = pd.read_csv(gt_csv)
+        return gc, gt
+    df = pd.read_csv(input_csv)
+    df = df.dropna(subset=['guest_country', 'guest_type', 'accommodation_id', 'review_score'])
+
+    gc_df = df.groupby([ 'guest_country', 'accommodation_id']) \
+        .agg(avg_score=('review_score', 'mean'),
+             count=('review_score', 'count')) \
+        .reset_index()
+    gc_df = gc_df[gc_df['count'] > 5]
+    gc_df.to_csv(gc_csv, index=False)
+    gt_df = df.groupby([ 'guest_type', 'accommodation_id']) \
+        .agg(avg_score=('review_score', 'mean'),
+             count=('review_score', 'count')) \
+        .reset_index()
+    gt_df = gt_df[gt_df['count'] > 5]
+    gt_df.to_csv(gt_csv, index=False)
+    return gc_df, gt_df
+
 def embedder_filtering(embedding, id_to_reviews, accommodations, nationality, accomodation_type, star, ski, beach, center, score):
     qualified_accommodations = accommodations
     # Filtering according to the need of user:
@@ -114,8 +135,7 @@ def weight_calculation(indices, distances, reviews, review_indexes, guest_type, 
     heap = []
     guest_country_relation = 1
     guest_type_relation = 1
-    gc = pd.read_csv(guest_country_relations)
-    gt = pd.read_csv(guest_type_relations)
+    gc, gt = triplet_table()
     for i, idx in enumerate(indices):
         accommodation = reviews[review_indexes[idx]]["accommodation_id"]
         if gc[(gc['guest_country'] == guest_country) & (gc["accommodation_id"] == accommodation)].empty:
@@ -129,11 +149,29 @@ def weight_calculation(indices, distances, reviews, review_indexes, guest_type, 
         log_scaled_helpful = math.log10(1 + helpful_votes) / math.log10(1 + 91)
         country_factor = 1 if guest_country_relation == 0 else gc[(gc['guest_country'] == guest_country) & (gc["accommodation_id"] == reviews[review_indexes[idx]]["accommodation_id"])].iloc[0]['avg_score']
         type_factor = 1 if guest_type_relation == 0 else gt[(gt['guest_type'] == guest_type) & (gt["accommodation_id"] == reviews[review_indexes[idx]]["accommodation_id"])].iloc[0]['avg_score']
-        month_factor = 1 if months == -1 else ((3 - max(abs(reviews[review_indexes[idx]]["month"] - months), 3)) / 6) + 0.5
-        night_factor = 1 if nights == -1 else ((2 - max(abs(reviews[review_indexes[idx]]["room_nights"] - nights), 2)) / 4) + 0.5
+        month_factor = 1 if months == -1 else (((3 - max(abs(reviews[review_indexes[idx]]["month"] - months), 3)) / 6) + 0.5)
+        night_factor = 1 if nights == -1 else (((2 - max(abs(reviews[review_indexes[idx]]["room_nights"] - nights), 2)) / 4) + 0.5)
         weight = distances[0][i] * (1 - 0.5 * log_scaled_helpful) * (10 - country_factor) * (10 - type_factor) * month_factor * night_factor
         heapq.heappush(heap, (weight, idx))
     return heap
+
+
+def get_top_k(reviews, heap, review_indexes, k):
+    dict_rankcount = {}
+    heap_avgfirst = []
+    for (weight, idx) in heap:
+        result = reviews[review_indexes[idx]]
+        aid = result['accommodation_id']
+        ranksum, count, first = dict_rankcount.get(aid, (0, 0, -1))
+        dict_rankcount[aid] = (ranksum+idx, count+1, idx if first == -1 else first)
+    for id, (ranksum, count, first) in dict_rankcount.items():
+        heapq.heappush(heap_avgfirst, (ranksum / count, first))
+    top_k = heapq.nsmallest(min(k, len(heap_avgfirst)), heap_avgfirst)
+    results = "\n"
+    for (avg, first) in top_k:
+        result = reviews[review_indexes[first]]
+        results = results + f"Accommodation ID: {result['accommodation_id']} Review: {result['full_text']}\n"
+    return results
 
 
 def generate(nationality, type, star, ski, beach, center, score, guest_type, guest_country, months, nights):
@@ -158,14 +196,9 @@ def generate(nationality, type, star, ski, beach, center, score, guest_type, gue
     if len(review_indexes) == 0:
         print("No accommodation that fits your need found... So we can't give you any recommendation.")
         return
-    log_helpful_denom = math.log10(1 + 91)
-    distances, indices = index.search(np.array([query_embedding]), min(20, len(review_indexes)))
+    distances, indices = index.search(np.array([query_embedding]), min(100, len(review_indexes)))
     heap = weight_calculation(indices[0], distances, reviews, review_indexes, guest_type, guest_country, months, nights)
-    pairs = heapq.nsmallest(min(5, len(review_indexes)), heap)
-    results = "\n"
-    for (weight, idx) in pairs:
-        result = reviews[review_indexes[idx]]
-        results = results + f"Accommodation ID: {result['accommodation_id']} Review: {result['full_text']}\n"
+    results = get_top_k(reviews, heap, review_indexes, min(5, len(review_indexes)))
     # Create the prompt for LLM:
     prompt = (
             payload +
@@ -191,10 +224,9 @@ def generate(nationality, type, star, ski, beach, center, score, guest_type, gue
     ])
     print(response_a['message']['content'])
 def main():
-    generate("Spain", "Hotel", 4, 0, -1, 0, 8, "Couple", "Bemab", 6, 7)
+    generate("Spain", "Hotel", 4, 0, 1, 0, 8, "Couple", "Bemab", 6, 7)
 
 
 
 if __name__ == "__main__":
-    get_relation()
     main()
