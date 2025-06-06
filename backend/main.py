@@ -9,8 +9,12 @@ import os
 import pickle
 from collections import defaultdict
 import heapq
+import re
+import json
 
-def load_reviews(dataset_path='train.csv', cache_path="reviews.pkl"):
+base_dir = os.path.dirname(os.path.abspath(__file__))
+
+def load_reviews(dataset_path=os.path.join(base_dir, 'data', 'train.csv'), cache_path=os.path.join(base_dir, 'data', "reviews.pkl")):
     reviews = []
     if os.path.exists(cache_path):
         # Load if there is the cache document for reviews exists:
@@ -45,7 +49,7 @@ def load_reviews(dataset_path='train.csv', cache_path="reviews.pkl"):
             pickle.dump(reviews, f)
     return reviews
 
-def load_embedding(embedder, reviews, cache_path="embedding.npy"):
+def load_embedding(embedder, reviews, cache_path=os.path.join(base_dir, 'data', "embedding.npy")):
     # Load if there is the cache document for embedding exists:
     if os.path.exists(cache_path):
         embedding = np.load(cache_path)
@@ -55,7 +59,7 @@ def load_embedding(embedder, reviews, cache_path="embedding.npy"):
         np.save(cache_path, embedding)
     return embedding
 
-def get_relation(dataset_path='train.csv', accommodations_path='accommodations.csv', cache_path="relations.pkl"):
+def get_relation(dataset_path=os.path.join(base_dir, 'data', 'train.csv'), accommodations_path=os.path.join(base_dir, 'data', 'accommodations.csv'), cache_path=os.path.join(base_dir, 'data', "relations.pkl")):
     if os.path.exists(cache_path):
         # Load if there is the cache document for relations from accommodation ids to reviews exists:
         with open(cache_path, "rb") as f:
@@ -84,7 +88,7 @@ def get_relation(dataset_path='train.csv', accommodations_path='accommodations.c
         accommodations.to_csv(accommodations_path, index=False)
     return id_to_reviews, accommodations
 
-def triplet_table(input_csv='train.csv', gc_csv='guest_country_accommodation.csv', gt_csv='guest_type_accommodation.csv'):
+def triplet_table(input_csv=os.path.join(base_dir, 'data', 'train.csv'), gc_csv=os.path.join(base_dir, 'data', 'guest_country_accommodation.csv'), gt_csv=os.path.join(base_dir, 'data', 'guest_type_accommodation.csv')):
     if os.path.exists(gc_csv) and os.path.exists(gt_csv):
         gc = pd.read_csv(gc_csv)
         gt = pd.read_csv(gt_csv)
@@ -131,7 +135,7 @@ def embedder_filtering(embedding, id_to_reviews, accommodations, nationality, ac
     embedding = embedding[review_indexes]
     return embedding, review_indexes
 
-def weight_calculation(indices, distances, reviews, review_indexes, guest_type, guest_country, months, nights, guest_country_relations="guest_country_accommodation.csv", guest_type_relations="guest_type_accommodation.csv"):
+def weight_calculation(indices, distances, reviews, review_indexes, guest_type, guest_country, months, nights):
     heap = []
     guest_country_relation = 1
     guest_type_relation = 1
@@ -159,6 +163,8 @@ def weight_calculation(indices, distances, reviews, review_indexes, guest_type, 
 def get_top_k(reviews, heap, review_indexes, k):
     dict_rankcount = {}
     heap_avgfirst = []
+    aids = []
+    rids = []
     for rank, (weight, idx) in enumerate(heap):
         result = reviews[review_indexes[idx]]
         aid = result['accommodation_id']
@@ -166,19 +172,60 @@ def get_top_k(reviews, heap, review_indexes, k):
         dict_rankcount[aid] = (ranksum + len(heap) - rank, idx if first == -1 else first, idx if (first != -1 and second == -1) else second, idx if (first != -1 and second != -1 and third == -1) else third)
     for id, (ranksum, first, second, third) in dict_rankcount.items():
         heapq.heappush(heap_avgfirst, (ranksum, first, second, third))
+        aids.append(id)
     top_k = heapq.nsmallest(min(k, len(heap_avgfirst)), heap_avgfirst)
     results = "\n"
     for (ranksum, first, second, third) in top_k:
         if first != -1:
             result = reviews[review_indexes[first]]
             results = results + f"Accommodation ID: {result['accommodation_id']} Review: {result['full_text']}\n"
+            rids.append(first)
         if second != -1:
             result = reviews[review_indexes[second]]
             results = results + f"Accommodation ID: {result['accommodation_id']} Review: {result['full_text']}\n"
+            rids.append(second)
         if third != -1:
             result = reviews[review_indexes[third]]
             results = results + f"Accommodation ID: {result['accommodation_id']} Review: {result['full_text']}\n"
-    return results
+            rids.append(third)
+    return results, aids, rids
+
+def to_json(reviews, review_indexes, rids, aids, response):
+    main_response = response['message']['content'].split("</think>")[-1]
+    target_id = -1
+    target_reviews = []
+    other_reviews = []
+    for id in aids:
+        if str(id) in main_response:
+            target_id = id
+            break
+    if target_id == -1:
+        print("Answer from LLM is not an available id?!")
+    for rid in rids:
+        result = reviews[review_indexes[rid]]
+        title = str(result['title']) if str(result['title']).strip().lower() != "nan" else "Untitled"
+        pro = str(result['positive']) if str(result['positive']).strip().lower() != "nan" else "Nothing"
+        contra = str(result['negative']) if str(result['negative']).strip().lower() != "nan" else "Nothing"
+        if result['accommodation_id'] == target_id:
+            target_reviews.append({
+                "accommodation_id": result['accommodation_id'],
+                "title": title,
+                "pro": pro,
+                "contra": contra,
+            })
+        else:
+            other_reviews.append({
+                "accommodation_id": result['accommodation_id'],
+                "title": title,
+                "pro": pro,
+                "contra": contra,
+            })
+    result = {
+        "response": response['message']['content'],
+        "target_reviews": target_reviews,
+        "other_reviews": other_reviews,
+    }
+    return json.dumps(result, ensure_ascii=False, indent=2)
 
 
 def generate(nationality, type, star, ski, beach, center, score, guest_type, guest_country, months, nights):
@@ -205,7 +252,7 @@ def generate(nationality, type, star, ski, beach, center, score, guest_type, gue
         return
     distances, indices = index.search(np.array([query_embedding]), len(review_indexes))
     heap = weight_calculation(indices[0], distances, reviews, review_indexes, guest_type, guest_country, months, nights)
-    results = get_top_k(reviews, heap, review_indexes, min(5, len(review_indexes)))
+    results, aids, rids= get_top_k(reviews, heap, review_indexes, min(5, len(review_indexes)))
     # Create the prompt for LLM:
     prompt = (
             payload +
@@ -223,13 +270,20 @@ def generate(nationality, type, star, ski, beach, center, score, guest_type, gue
     print(prompt)
     # Generate the answer. Please make sure ollama is downloaded in your computer and is working now:
     # Also please make sure you have downloaded this model locally using "ollama pull" in terminal:
-    response_a = ollama.chat(model='deepseek-r1:7b', messages=[
+    response = ollama.chat(model='deepseek-r1:7b', messages=[
         {
             'role': 'user',
             'content': prompt
         },
     ])
-    print(response_a['message']['content'])
+    print(response['message']['content'])
+    json_result = to_json(reviews, review_indexes, rids, aids, response)
+    print(json_result)
+
+
+
+
+
 def main():
     generate("Spain", "Hotel", 3, 0, 1, 0, 8, "Couple", "Bemab", 6, 7)
 
