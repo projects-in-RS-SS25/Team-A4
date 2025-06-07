@@ -11,7 +11,11 @@ from collections import defaultdict
 import heapq
 import re
 import json
+from flask import Flask, jsonify, request, render_template
+from flask_cors import CORS
 
+app = Flask(__name__)
+CORS(app)
 base_dir = os.path.dirname(os.path.abspath(__file__))
 
 def load_reviews(dataset_path=os.path.join(base_dir, 'data', 'train.csv'), cache_path=os.path.join(base_dir, 'data', "reviews.pkl")):
@@ -137,15 +141,17 @@ def embedder_filtering(embedding, id_to_reviews, accommodations, nationality, ac
 
 def weight_calculation(indices, distances, reviews, review_indexes, guest_type, guest_country, months, nights):
     heap = []
-    guest_country_relation = 1
-    guest_type_relation = 1
+    guest_country_relation = 0 if guest_country is None else 1
+    guest_type_relation = 0 if guest_type is None else 1
     gc, gt = triplet_table()
     for i, idx in enumerate(indices):
         accommodation = reviews[review_indexes[idx]]["accommodation_id"]
-        if gc[(gc['guest_country'] == guest_country) & (gc["accommodation_id"] == accommodation)].empty:
-            guest_country_relation = 0
-        if gt[(gt['guest_type'] == guest_type) & (gt["accommodation_id"] == accommodation)].empty:
-            guest_type_relation = 0
+        if guest_country is not None:
+            if gc[(gc['guest_country'] == guest_country) & (gc["accommodation_id"] == accommodation)].empty:
+                guest_country_relation = 0
+        if guest_type is not None:
+            if gt[(gt['guest_type'] == guest_type) & (gt["accommodation_id"] == accommodation)].empty:
+                guest_type_relation = 0
         if guest_country_relation == guest_type_relation == 0:
             break
     for i, idx in enumerate(indices):
@@ -221,18 +227,18 @@ def to_json(reviews, review_indexes, rids, aids, response):
                 "contra": contra,
             })
     result = {
-        "response": response['message']['content'],
+        "response": main_response,
         "target_reviews": target_reviews,
         "other_reviews": other_reviews,
     }
     return json.dumps(result, ensure_ascii=False, indent=2)
 
 
-def generate(nationality, type, star, ski, beach, center, score, guest_type, guest_country, months, nights):
+def generate(nationality, type, star, ski, beach, center, score, guest_type, guest_country, months, nights, requirement):
     # Multithreading, in order to accelerate the embedding process:
     # torch.set_num_threads(8)
     embedder = SentenceTransformer("all-MiniLM-L6-v2")
-    payload = input("Please type your requirements of accommodation: \n")
+    payload = requirement
     # Load the dataset:
     reviews = load_reviews()
     # Load or create the embedding of dataset:
@@ -278,16 +284,26 @@ def generate(nationality, type, star, ski, beach, center, score, guest_type, gue
     ])
     print(response['message']['content'])
     json_result = to_json(reviews, review_indexes, rids, aids, response)
-    print(json_result)
+    return json_result
 
 
+@app.route('/recommend', methods=['POST'])
+def recommend():
+    data = request.get_json()
+    nationality = data.get('accommodation_country', None)
+    type = data.get('accommodation_type', None)
+    star = float(data.get('accommodation_star', -1))
+    ski = int(data.get('ski', -1))
+    beach = int(data.get('beach', -1))
+    center = int(data.get('center', -1))
+    score = float(data.get('score', -1))
+    guest_type = data.get('guest_type', None)
+    guest_country = data.get('guest_country', None)
+    months = int(data.get('months', -1))
+    nights = int(data.get('nights', -1))
+    requirement = data.get('requirement', None)
+    return generate(nationality, type, star, ski, beach, center, score, guest_type, guest_country, months, nights, requirement)
 
 
-
-def main():
-    generate("Spain", "Hotel", 3, 0, 1, 0, 8, "Couple", "Bemab", 6, 7)
-
-
-
-if __name__ == "__main__":
-    main()
+if __name__ == '__main__':
+    app.run(host="0.0.0.0", port=5001)
