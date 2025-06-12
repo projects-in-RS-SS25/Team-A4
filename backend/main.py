@@ -114,13 +114,14 @@ def triplet_table(input_csv=os.path.join(base_dir, 'data', 'train.csv'), gc_csv=
     gt_df.to_csv(gt_csv, index=False)
     return gc_df, gt_df
 
-def embedder_filtering(embedding, id_to_reviews, accommodations, nationality, accomodation_type, star, ski, beach, center, score):
+def embedder_filtering(embedding, id_to_reviews, accommodations, nationality, accommodation_type, star, ski, beach, center, score):
     qualified_accommodations = accommodations
     # Filtering according to the need of user:
     if nationality is not None:
         qualified_accommodations = qualified_accommodations[qualified_accommodations['accommodation_country'] == nationality]
-    if accomodation_type is not None:
-        qualified_accommodations = qualified_accommodations[qualified_accommodations['accommodation_type'] == accomodation_type]
+    if accommodation_type:
+        qualified_accommodations = qualified_accommodations[qualified_accommodations['accommodation_type'].isin(accommodation_type)
+        ]
     if star != -1:
         qualified_accommodations = qualified_accommodations[qualified_accommodations['accommodation_star_rating'] >= star]
     if ski != -1:
@@ -234,7 +235,7 @@ def to_json(reviews, review_indexes, rids, aids, response):
     return json.dumps(result, ensure_ascii=False, indent=2)
 
 
-def generate(nationality, type, star, ski, beach, center, score, guest_type, guest_country, months, nights, requirement):
+def generate(nationality, types, star, ski, beach, center, score, guest_type, guest_country, months, nights, requirement):
     # Multithreading, in order to accelerate the embedding process:
     # torch.set_num_threads(8)
     embedder = SentenceTransformer("all-MiniLM-L6-v2")
@@ -246,7 +247,7 @@ def generate(nationality, type, star, ski, beach, center, score, guest_type, gue
     # Load or create the relationship between reviews and accommodations:
     id_to_reviews, accommodations = get_relation()
     # Filtering the embedding:
-    embedding, review_indexes = embedder_filtering(embedding_primary, id_to_reviews, accommodations, nationality, type, star, ski, beach, center, score)
+    embedding, review_indexes = embedder_filtering(embedding_primary, id_to_reviews, accommodations, nationality, types, star, ski, beach, center, score)
     dimension = embedding.shape[1]
     index = faiss.IndexFlatL2(dimension)
     index.add(embedding)
@@ -284,6 +285,7 @@ def generate(nationality, type, star, ski, beach, center, score, guest_type, gue
     ])
     print(response['message']['content'])
     json_result = to_json(reviews, review_indexes, rids, aids, response)
+    print(json_result)
     return json_result
 
 
@@ -291,7 +293,7 @@ def generate(nationality, type, star, ski, beach, center, score, guest_type, gue
 def recommend():
     data = request.get_json()
     nationality = data.get('accommodation_country', None)
-    type = data.get('accommodation_type', None)
+    types = data.get('accommodation_type', [])
     star = float(data.get('accommodation_star', -1))
     ski = int(data.get('ski', -1))
     beach = int(data.get('beach', -1))
@@ -301,9 +303,10 @@ def recommend():
     guest_country = data.get('guest_country', None)
     months = int(data.get('months', -1))
     nights = int(data.get('nights', -1))
-    requirement = data.get('requirement', None)
-    return generate(nationality, type, star, ski, beach, center, score, guest_type, guest_country, months, nights, requirement)
+    requirement = data.get('requirement', "")
+    return generate(nationality, types, star, ski, beach, center, score, guest_type, guest_country, months, nights, requirement)
 
 
 if __name__ == '__main__':
-    app.run(host="0.0.0.0", port=5001)
+    generate("China", ["Hotel", "Hostel"], 4, -1, -1, -1, 8, None, None, 4,4, "123")
+    #app.run(host="0.0.0.0", port=5001)
