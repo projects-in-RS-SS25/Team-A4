@@ -303,7 +303,7 @@ def recommend():
     guest_country = data.get('guest_country', None)
     months = int(data.get('months', -1))
     nights = int(data.get('nights', -1))
-    requirement = data.get('requirement', "")
+    requirement = data.get('requirement', "Please recommend me such an accommodation.")
     return generate(nationality, types, star, ski, beach, center, score, guest_type, guest_country, months, nights, requirement)
 
 
