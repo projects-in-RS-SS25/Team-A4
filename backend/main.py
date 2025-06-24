@@ -353,6 +353,7 @@ def generate(nationality, types, star, ski, beach, center, score, guest_type, gu
             "Please ONLY make recommendation based on the following reviews.\n"
             f"<reviews>{results}\n</reviews>\n"
             "Before answering, check once more:\n"
+            "Have you recommended and ONLY recommended ONE recommendation?\n"
             "Is your recommendation based **only** on the above reviews?\n"
             "Did you provide ONLY the accommodation_id and your reason?\n"
             "If not, regenerate your answer.\n"
