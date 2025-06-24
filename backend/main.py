@@ -1,5 +1,6 @@
 import math
 from sentence_transformers import SentenceTransformer
+from pyabsa import ATEPCCheckpointManager
 import ollama
 import faiss
 import numpy as np
@@ -17,7 +18,35 @@ from flask_cors import CORS
 app = Flask(__name__)
 CORS(app)
 base_dir = os.path.dirname(os.path.abspath(__file__))
-
+absa_model = SentenceTransformer('paraphrase-multilingual-MiniLM-L12-v2')
+absa_extractor = ATEPCCheckpointManager.get_aspect_extractor(checkpoint='multilingual')
+aspects_const = [
+    'Room Comfort', 'Bed', 'Decoration', 'View', 'Clean', 'Noise',
+    'Elevator', 'Food', 'Internet', 'Value of Money', 'Location',
+    'Flexibility', 'Security', 'Parking', 'Pool', 'Staff', 'Activity',
+    'Service', 'Air Conditioner', 'Bath'
+]
+aspect2idx = {aspect: idx for idx, aspect in enumerate(aspects_const)}
+aspect2idx.update({
+    "transport": 10, "transportation": 10, "metro": 10, "subway":10, "tram":10, "taxi": 10, "access": 10, "bus": 10,
+    "receptionist": 15, "front desk": 15, "host": 15, "manager": 15, "assist": 17, "support": 17, "communication": 15, "offer": 17, "owner": 15,
+    "floor": 4, "wall": 4, "dirt": 4, "dust": 4, "hair": 4,
+    "room": 0, "rooms" : 0, "suite": 0, "space": 0, "windows": 0,
+    "breakfast": 7, "breakfasts": 7, "dinner": 7, "restaurant": 7, "meal": 7, "meals": 7, "menu": 7, "buffet": 7, "drink": 7, "drinks": 7, "cafe": 7, "cafes": 7, "kitchen": 7, "bar":7, "supper": 7, "brunch": 7,
+    "price": 9, "money": 9, "expensive": 9,
+    "check in": 11, "check out": 11, "check-in": 11, "check-out": 11, "reservation": 11,
+    "safety": 12, "lock": 12,
+    "ac": 18, "fan": 18, "fans": 18, "heat": 18, "heats": 18, "aircon": 18, "airconditioner": 18,
+    "bathroom": 19, "bathrooms": 19, "shower": 19, "bathtub": 19, "toilet": 19, "sink": 19, "hairdryer": 19, "mirror": 19, "water": 14, "robes": 19,
+    "balcony": 3, "mountain": 3, "ocean": 3, "sea": 3, "garden": 3, "landscape": 3, "panorama": 3,
+    "spacious": 0, "large": 0, "well-equipped": 0, "modern": 2, "modernly furnished": 2,
+    "authentic": 2, "central": 10, "convenient": 10, "walking distance": 10, "close to": 10,
+    "scraping": 5, "loud": 5, "noisy": 5, "quiet": 5,
+    "friendly": 15, "kind": 15, "helpful": 15,
+    "dirty": 4, "not clean": 4,
+    "suitable for family": 16, "family": 16,
+    "well laid out": 2, "lake": 3,
+})
 def load_reviews(dataset_path=os.path.join(base_dir, 'data', 'train.csv'), cache_path=os.path.join(base_dir, 'data', "reviews.pkl")):
     reviews = []
     if os.path.exists(cache_path):
@@ -63,6 +92,28 @@ def load_embedding(embedder, reviews, cache_path=os.path.join(base_dir, 'data', 
         np.save(cache_path, embedding)
     return embedding
 
+def load_absa(dataset_path=os.path.join(base_dir, 'data', 'ABSA_results.csv'), sep = "㏦", cache_path=os.path.join(base_dir, 'data', "absa.pkl")):
+    if(os.path.exists(cache_path)):
+        with open(cache_path, "rb") as f:
+            absa = pickle.load(f)
+    else:
+        if(os.path.exists(dataset_path)):
+            df_absa = pd.read_csv(dataset_path, sep=sep)
+            absa = df_absa[aspects_const].values.tolist()
+            with open(cache_path, 'wb') as f:
+                pickle.dump(absa, f)
+        else: return None
+    return absa
+
+def load_aspect_vectors(cache_path=os.path.join(base_dir, 'data', "absa_vectors.pkl")):
+    if(os.path.exists(cache_path)):
+        with open(cache_path, "rb") as f:
+            aspect_vectors = pickle.load(f)
+    else:
+        aspect_vectors = absa_model.encode(aspects_const, batch_size=32, normalize_embeddings=True)
+        with open(cache_path, 'wb') as f:
+            pickle.dump(aspect_vectors, f)
+    return aspect_vectors
 def get_relation(dataset_path=os.path.join(base_dir, 'data', 'train.csv'), accommodations_path=os.path.join(base_dir, 'data', 'accommodations.csv'), cache_path=os.path.join(base_dir, 'data', "relations.pkl")):
     if os.path.exists(cache_path):
         # Load if there is the cache document for relations from accommodation ids to reviews exists:
@@ -140,7 +191,34 @@ def embedder_filtering(embedding, id_to_reviews, accommodations, nationality, ac
     embedding = embedding[review_indexes]
     return embedding, review_indexes
 
-def weight_calculation(indices, distances, reviews, review_indexes, guest_type, guest_country, months, nights):
+def calculate_absa_query(request, aspect_vectors):
+    result = absa_extractor.predict(request)
+    new_aspects_to_encode = []
+    current_batch_new_aspect_map = {}
+    for aspect in result["aspect"]:
+        if aspect not in aspect2idx and aspect not in current_batch_new_aspect_map:
+            new_aspects_to_encode.append(aspect)
+            current_batch_new_aspect_map[aspect] = None
+    if new_aspects_to_encode:
+        new_aspect_vecs = absa_model.encode(new_aspects_to_encode, batch_size=32, normalize_embeddings=True)
+        aspect_index = faiss.IndexFlatIP(aspect_vectors.shape[1])
+        aspect_index.add(aspect_vectors)
+        D, I = aspect_index.search(new_aspect_vecs, 1)
+        for k, new_aspect in enumerate(new_aspects_to_encode):
+            sim = D[k][0]
+            idx_match = I[k][0]
+            aspect2idx[new_aspect] = idx_match if sim >= 0.5 else -1
+    aspect_vector = [0] * len(aspects_const)
+    count_vector = [0] * len(aspects_const)
+    for k, aspect in enumerate(result["aspect"]):
+        if (aspect2idx[aspect] != -1):
+            aspect_vector[aspect2idx[aspect]] = result["confidence"][k] * (1 if result["sentiment"][k] == "Positive" else (-1 if result["sentiment"][k] == "Negative" else 0))
+            count_vector[aspect2idx[aspect]]  += 1
+    absa_vector = [x / y if y != 0 else 0 for x, y in zip(aspect_vector, count_vector)]
+    return absa_vector
+
+
+def weight_calculation(indices, distances, reviews, review_indexes, guest_type, guest_country, months, nights, absa, absa_vector):
     heap = []
     guest_country_relation = 0 if guest_country is None else 1
     guest_type_relation = 0 if guest_type is None else 1
@@ -162,7 +240,11 @@ def weight_calculation(indices, distances, reviews, review_indexes, guest_type, 
         type_factor = 1 if guest_type_relation == 0 else 0.75 + ((10 - gt[(gt['guest_type'] == guest_type) & (gt["accommodation_id"] == reviews[review_indexes[idx]]["accommodation_id"])].iloc[0]['avg_score']) / 20)
         month_factor = 1 if months == -1 else (1.25 - ((3 - max(abs(reviews[review_indexes[idx]]["month"] - months), 3)) / 6))
         night_factor = 1 if nights == -1 else (1.25 - ((2 - max(abs(reviews[review_indexes[idx]]["room_nights"] - nights), 2)) / 4))
-        weight = distances[0][i] * log_scaled_helpful * country_factor * type_factor * month_factor * night_factor
+        if absa != None:
+            distance = np.linalg.norm(np.array(absa_vector) - np.array(absa[review_indexes[idx]]))
+        else:
+            distance = distances[0][i]
+        weight = ((distances[0][i] * distance) ** 0.5) * log_scaled_helpful * country_factor * type_factor * month_factor * night_factor
         heapq.heappush(heap, (weight, idx))
     return heap
 
@@ -242,10 +324,13 @@ def generate(nationality, types, star, ski, beach, center, score, guest_type, gu
     payload = requirement
     # Load the dataset:
     reviews = load_reviews()
+    aspect_vectors = load_aspect_vectors()
     # Load or create the embedding of dataset:
     embedding_primary = load_embedding(embedder, reviews)
     # Load or create the relationship between reviews and accommodations:
     id_to_reviews, accommodations = get_relation()
+    # Load absa data
+    absa = load_absa()
     # Filtering the embedding:
     embedding, review_indexes = embedder_filtering(embedding_primary, id_to_reviews, accommodations, nationality, types, star, ski, beach, center, score)
     dimension = embedding.shape[1]
@@ -258,7 +343,8 @@ def generate(nationality, types, star, ski, beach, center, score, guest_type, gu
         print("No accommodation that fits your need found... So we can't give you any recommendation.")
         return
     distances, indices = index.search(np.array([query_embedding]), len(review_indexes))
-    heap = weight_calculation(indices[0], distances, reviews, review_indexes, guest_type, guest_country, months, nights)
+    absa_vector = calculate_absa_query(payload, aspect_vectors)
+    heap = weight_calculation(indices[0], distances, reviews, review_indexes, guest_type, guest_country, months, nights, absa, absa_vector)
     results, aids, rids= get_top_k(reviews, heap, review_indexes, min(5, len(review_indexes)))
     # Create the prompt for LLM:
     prompt = (
@@ -277,7 +363,7 @@ def generate(nationality, types, star, ski, beach, center, score, guest_type, gu
     print(prompt)
     # Generate the answer. Please make sure ollama is downloaded in your computer and is working now:
     # Also please make sure you have downloaded this model locally using "ollama pull" in terminal:
-    response = ollama.chat(model='deepseek-r1:7b', messages=[
+    response = ollama.chat(model='deepseek-r1:1.5b', messages=[
         {
             'role': 'user',
             'content': prompt
@@ -308,5 +394,5 @@ def recommend():
 
 
 if __name__ == '__main__':
-    generate("China", ["Hotel", "Hostel"], 4, -1, -1, -1, 8, None, None, 4,4, "123")
+    generate("Spain", ["Hotel", "Hostel"], 4, -1, -1, -1, 8, None, None, 4,4, "I want to stay in a hotel with beautiful ocean wiew")
     #app.run(host="0.0.0.0", port=5001)
