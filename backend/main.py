@@ -199,6 +199,7 @@ def calculate_absa_query(request, aspect_vectors):
         if aspect not in aspect2idx and aspect not in current_batch_new_aspect_map:
             new_aspects_to_encode.append(aspect)
             current_batch_new_aspect_map[aspect] = None
+    '''
     if new_aspects_to_encode:
         new_aspect_vecs = absa_model.encode(new_aspects_to_encode, batch_size=32, normalize_embeddings=True)
         aspect_index = faiss.IndexFlatIP(aspect_vectors.shape[1])
@@ -208,10 +209,12 @@ def calculate_absa_query(request, aspect_vectors):
             sim = D[k][0]
             idx_match = I[k][0]
             aspect2idx[new_aspect] = idx_match if sim >= 0.5 else -1
+    '''
     aspect_vector = [0] * len(aspects_const)
     count_vector = [0] * len(aspects_const)
     for k, aspect in enumerate(result["aspect"]):
-        if (aspect2idx[aspect] != -1):
+        idx = aspect2idx.get(aspect, -1)
+        if (idx != -1):
             aspect_vector[aspect2idx[aspect]] = result["confidence"][k] * (1 if result["sentiment"][k] == "Positive" else (-1 if result["sentiment"][k] == "Negative" else 0))
             count_vector[aspect2idx[aspect]]  += 1
     absa_vector = [x / y if y != 0 else 0 for x, y in zip(aspect_vector, count_vector)]
@@ -249,7 +252,7 @@ def weight_calculation(indices, distances, reviews, review_indexes, guest_type, 
             distance = 0.75 + 0.5 * (1 - (np.linalg.norm(result)))
         else:
             distance = distances[0][i]
-        weight = ((distances[0][i] * distance) ** 0.5) * log_scaled_helpful * country_factor * type_factor * month_factor * night_factor
+        weight = ((distances[0][i] ** 1.4 * distance ** 0.6) ** 0.5) * log_scaled_helpful * country_factor * type_factor * month_factor * night_factor
         heapq.heappush(heap, (weight, idx))
     return heap
 
@@ -399,5 +402,6 @@ def recommend():
 
 
 if __name__ == '__main__':
-    generate(None, ["Capsule Hotel"], -1, -1, -1, -1, -1, None, None, -1,-1, "Please recommend me a Capsule Hotel, which is with an air conditioner, parking available, and well located.")
+    generate(None, ["Farm stay"], -1, -1, -1, -1, -1, None, None, -1,-1,
+             "Please recommend me a Farm stay, which is well cleaned, have a nice view, and with a nice pool.")
     #app.run(host="0.0.0.0", port=5001)
