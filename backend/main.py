@@ -241,7 +241,12 @@ def weight_calculation(indices, distances, reviews, review_indexes, guest_type, 
         month_factor = 1 if months == -1 else (1.25 - ((3 - max(abs(reviews[review_indexes[idx]]["month"] - months), 3)) / 6))
         night_factor = 1 if nights == -1 else (1.25 - ((2 - max(abs(reviews[review_indexes[idx]]["room_nights"] - nights), 2)) / 4))
         if absa != None:
-            distance = np.linalg.norm(np.array(absa_vector) - np.array(absa[review_indexes[idx]]))
+            absa_arr = np.array(absa[review_indexes[idx]])
+            vec_arr = np.array(absa_vector)
+            mask = (vec_arr != 0)
+            cmp  = (absa_arr > vec_arr)
+            result = (mask & cmp).astype(int)
+            distance = 0.75 + 0.5 * (1 - (np.linalg.norm(result)))
         else:
             distance = distances[0][i]
         weight = ((distances[0][i] * distance) ** 0.5) * log_scaled_helpful * country_factor * type_factor * month_factor * night_factor
@@ -281,21 +286,20 @@ def get_top_k(reviews, heap, review_indexes, k):
 
 def to_json(reviews, review_indexes, rids, aids, response):
     main_response = response['message']['content'].split("</think>")[-1]
-    target_id = -1
+    target_id = []
     target_reviews = []
     other_reviews = []
     for id in aids:
         if str(id) in main_response:
-            target_id = id
-            break
-    if target_id == -1:
+            target_id.append(id)
+    if not target_id:
         print("Answer from LLM is not an available id?!")
     for rid in rids:
         result = reviews[review_indexes[rid]]
         title = str(result['title']) if str(result['title']).strip().lower() != "nan" else "Untitled"
         pro = str(result['positive']) if str(result['positive']).strip().lower() != "nan" else "Nothing"
         contra = str(result['negative']) if str(result['negative']).strip().lower() != "nan" else "Nothing"
-        if result['accommodation_id'] == target_id:
+        if result['accommodation_id'] in target_id:
             target_reviews.append({
                 "accommodation_id": result['accommodation_id'],
                 "title": title,
@@ -395,5 +399,5 @@ def recommend():
 
 
 if __name__ == '__main__':
-    generate("Spain", ["Hotel", "Hostel"], 4, -1, -1, -1, 8, None, None, 4,4, "I want to stay in a hotel with beautiful ocean wiew")
+    generate(None, ["Capsule Hotel"], -1, -1, -1, -1, -1, None, None, -1,-1, "Please recommend me a Capsule Hotel, which is with an air conditioner, parking available, and well located.")
     #app.run(host="0.0.0.0", port=5001)
