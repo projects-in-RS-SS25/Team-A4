@@ -382,7 +382,6 @@ def generate(nationality, types, star, ski, beach, center, score, guest_type, gu
     print(json_result)
     return json_result
 
-
 @app.route('/recommend', methods=['POST'])
 def recommend():
     data = request.get_json()
@@ -402,6 +401,6 @@ def recommend():
 
 
 if __name__ == '__main__':
-    generate(None, ["Farm stay"], -1, -1, -1, -1, -1, None, None, -1,-1,
-             "Please recommend me a Farm stay, which is well cleaned, have a nice view, and with a nice pool.")
+    generate(None, ["Resort"], -1, -1, -1, -1, -1, None, None, -1,-1,
+             "I want to live in a Resort, which is with an elevator, with interesting activities, and with nice service.")
     #app.run(host="0.0.0.0", port=5001)

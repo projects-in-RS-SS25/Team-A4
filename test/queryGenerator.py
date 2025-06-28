@@ -1,5 +1,11 @@
 import pandas as pd
 import random
+from plain_rag import generate_r
+from rag_filtering import generate_rf
+from rag_filtering_reranking import generate_rfr
+from rag_filtering_reranking_absa import generate_rfra
+from tqdm import tqdm
+random.seed(42)
 aspects = [
     "whose comfort is perfect", "with an enjoyable comfortable bed", "with lovely decoration", "have a nice view", "well cleaned",
     "without any noise", "with an elevator", "with tasty food", "with fast Wi-Fi", "whose value of cost is great", "with a great location",
@@ -16,10 +22,19 @@ acc_types = [
 ]
 rows = []
 num_queries = 50 #Could change the numbers of querys here
-for _ in range(num_queries):
+for _ in tqdm(range(num_queries), desc="Generating test data... "):
     at = random.choice(acc_types)
     a1, a2, a3 = random.sample(aspects, 3)
     query = f"I want to live in a {at}, which is {a1}, {a2}, and {a3}." if random.random() >= 0.5 else f"Please recommend me a {at}, which is {a1}, {a2}, and {a3}."
-    rows.append({'acc_type': at, 'query': query})
+    rows.append({'acc_type': at, 'query': query,
+                 'aspect_1': a1, "aspect_2": a2, 'aspect_3': a3,
+                 'plain_rag': generate_r(None, [at], -1, -1, -1, -1, -1, None, None, -1,-1,
+                                                                     query),
+                 'filtering': generate_rf(None, [at], -1, -1, -1, -1, -1, None, None, -1,-1,
+                                        query),
+                 'reranking': generate_rfr(None, [at], -1, -1, -1, -1, -1, None, None, -1,-1,
+                                         query),
+                 'absa': generate_rfra(None, [at], -1, -1, -1, -1, -1, None, None, -1,-1,
+                                      query)})
 df = pd.DataFrame(rows)
 df.to_csv('queries_for_ablation.csv', index=False)
