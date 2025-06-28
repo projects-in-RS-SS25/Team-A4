@@ -1,7 +1,7 @@
 import pandas as pd
 import random
 aspects = [
-    "cozy", "with an enjoyable comfortable bed", "well decorated", "have a nice view", "well cleaned",
+    "whose comfort is perfect", "with an enjoyable comfortable bed", "with lovely decoration", "have a nice view", "well cleaned",
     "without any noise", "with an elevator", "with tasty food", "with fast Wi-Fi", "worth costing", "with a great location",
     "flexible for staying", "in which I can expect a safe stay", "parking available", "with a nice pool", "with friendly staff", "with interesting activities",
     "with nice service", "with an air conditioner", "with a nice bathroom"
@@ -15,7 +15,7 @@ acc_types = [
     'Cruise', 'Love Hotel', 'Japanese-style Business Hotel'
 ]
 rows = []
-num_queries = 50  # 想生成多少行自己改
+num_queries = 50 #Could change the numbers of querys here
 for _ in range(num_queries):
     at = random.choice(acc_types)
     a1, a2, a3 = random.sample(aspects, 3)
