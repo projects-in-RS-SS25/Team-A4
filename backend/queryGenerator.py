@@ -2,9 +2,9 @@ import pandas as pd
 import random
 aspects = [
     "whose comfort is perfect", "with an enjoyable comfortable bed", "with lovely decoration", "have a nice view", "well cleaned",
-    "without any noise", "with an elevator", "with tasty food", "with fast Wi-Fi", "worth costing", "with a great location",
+    "without any noise", "with an elevator", "with tasty food", "with fast Wi-Fi", "whose value of cost is great", "with a great location",
     "flexible for staying", "in which I can expect a safe stay", "parking available", "with a nice pool", "with friendly staff", "with interesting activities",
-    "with nice service", "with an air conditioner", "with a nice bathroom"
+    "with nice service", "with an useful air conditioner", "with a nice bathroom"
 ]
 acc_types = [
     "Hotel", "Bed and Breakfast", 'ApartHotel', 'Hostel',
