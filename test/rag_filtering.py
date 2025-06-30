@@ -17,7 +17,7 @@ def generate_rf(nationality, types, star, ski, beach, center, score, guest_type,
     # Filtering the embedding:
     embedding, review_indexes = embedder_filtering(embedding_primary, id_to_reviews, accommodations, nationality, types, star, ski, beach, center, score)
     dimension = embedding.shape[1]
-    index = faiss.IndexFlatL2(dimension)
+    index = faiss.IndexFlatIP(dimension)
     index.add(embedding)
     # Turn the input of user into vector for the following search phase:
     query_embedding = embedder.encode(payload)

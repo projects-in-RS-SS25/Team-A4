@@ -14,7 +14,7 @@ def generate_r(nationality, types, star, ski, beach, center, score, guest_type, 
     embedding = load_embedding(embedder, reviews)
     # Load or create the relationship between reviews and accommodations:
     dimension = embedding.shape[1]
-    index = faiss.IndexFlatL2(dimension)
+    index = faiss.IndexFlatIP(dimension)
     index.add(embedding)
     # Turn the input of user into vector for the following search phase:
     query_embedding = embedder.encode(payload)
