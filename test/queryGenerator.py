@@ -1,9 +1,9 @@
 import pandas as pd
 import random
-from plain_rag import generate_r
-from rag_filtering import generate_rf
-from rag_filtering_reranking import generate_rfr
-from rag_filtering_reranking_absa import generate_rfra
+from test.plain_rag import generate_r
+from test.rag_filtering import generate_rf
+from test.rag_filtering_reranking import generate_rfr
+from test.rag_filtering_reranking_absa import generate_rfra
 from tqdm import tqdm
 random.seed(42)
 aspects = [
@@ -37,4 +37,4 @@ for _ in tqdm(range(num_queries), desc="Generating test data... "):
                  'absa': generate_rfra(None, [at], -1, -1, -1, -1, -1, None, None, -1,-1,
                                       query)})
 df = pd.DataFrame(rows)
-df.to_csv('queries_for_ablation.csv', index=False)
+df.to_csv('queries_for_ablation.csv', index=False, sep='㏦')
