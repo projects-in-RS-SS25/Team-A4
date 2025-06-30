@@ -82,13 +82,25 @@ def load_reviews(dataset_path=os.path.join(base_dir, 'data', 'train.csv'), cache
             pickle.dump(reviews, f)
     return reviews
 
+def categorize_nights(n):
+    if n == 1:
+        return 0
+    elif n == 2:
+        return 1
+    elif 3 <= n <= 4:
+        return 2
+    elif 5 <= n <= 10:
+        return 3
+    else:
+        return 4
+
 def load_embedding(embedder, reviews, cache_path=os.path.join(base_dir, 'data', "embedding.npy")):
     # Load if there is the cache document for embedding exists:
     if os.path.exists(cache_path):
         embedding = np.load(cache_path)
     else:
         # Create and save the vector list for embedded reviews, to reduce the processing time:
-        embedding = embedder.encode([review["full_text"] for review in reviews], convert_to_numpy=True)
+        embedding = embedder.encode([review["full_text"] for review in reviews], convert_to_numpy=True, normalize_embeddings=True)
         np.save(cache_path, embedding)
     return embedding
 
@@ -238,22 +250,32 @@ def weight_calculation(indices, distances, reviews, review_indexes, guest_type, 
             break
     for i, idx in enumerate(indices):
         helpful_votes = reviews[review_indexes[idx]]['helpful']
-        log_scaled_helpful = 1.25 - (0.5 * math.log10(1 + helpful_votes) / math.log10(1 + 91))
-        country_factor = 1 if guest_country_relation == 0 else 0.75 + ((10 - gc[(gc['guest_country'] == guest_country) & (gc["accommodation_id"] == reviews[review_indexes[idx]]["accommodation_id"])].iloc[0]['avg_score']) / 20)
-        type_factor = 1 if guest_type_relation == 0 else 0.75 + ((10 - gt[(gt['guest_type'] == guest_type) & (gt["accommodation_id"] == reviews[review_indexes[idx]]["accommodation_id"])].iloc[0]['avg_score']) / 20)
-        month_factor = 1 if months == -1 else (1.25 - ((3 - max(abs(reviews[review_indexes[idx]]["month"] - months), 3)) / 6))
-        night_factor = 1 if nights == -1 else (1.25 - ((2 - max(abs(reviews[review_indexes[idx]]["room_nights"] - nights), 2)) / 4))
+        log_scaled_helpful = 0.25 * math.log10(1 + helpful_votes) / math.log10(1 + 91)
+        country_factor = 0 if guest_country_relation == 0 else ((gc[(gc['guest_country'] == guest_country) & (gc["accommodation_id"] == reviews[review_indexes[idx]]["accommodation_id"])].iloc[0]['avg_score']) / 40)
+        type_factor = 0 if guest_type_relation == 0 else ((gt[(gt['guest_type'] == guest_type) & (gt["accommodation_id"] == reviews[review_indexes[idx]]["accommodation_id"])].iloc[0]['avg_score']) / 40)
+        month_factor = 0 if months == -1 else (6 - min(abs(reviews[review_indexes[idx]]["month"] - months), 12 - abs(reviews[review_indexes[idx]]["month"] - months))) / 24
+        night_factor = 0 if nights == -1 or (categorize_nights(reviews[review_indexes[idx]]["room_nights"]) != categorize_nights(nights)) else 0.25
         if absa != None:
             absa_arr = np.array(absa[review_indexes[idx]])
             vec_arr = np.array(absa_vector)
             mask = (vec_arr != 0)
-            cmp  = (absa_arr > vec_arr)
-            result = (mask & cmp).astype(int)
-            distance = 0.75 + 0.5 * (1 - (np.linalg.norm(result)))
+            if np.any(mask):
+                focused_absa = absa_arr[mask]
+                focused_vec = vec_arr[mask]
+                norm_absa = np.linalg.norm(focused_absa)
+                norm_vec = np.linalg.norm(focused_vec)
+                if norm_vec > 0 and norm_absa > 0:
+                    base_match_score = np.dot(focused_absa, focused_vec) / (
+                                norm_vec * norm_absa)
+                    distance = (base_match_score + 1) / 2
+                else:
+                    distance = distances[0][i]
+            else:
+                distance = distances[0][i]
         else:
             distance = distances[0][i]
-        weight = ((distances[0][i] ** 1.4 * distance ** 0.6) ** 0.5) * log_scaled_helpful * country_factor * type_factor * month_factor * night_factor
-        heapq.heappush(heap, (weight, idx))
+        weight = ((distances[0][i] * distance) * 5) + log_scaled_helpful + country_factor + type_factor + month_factor + night_factor
+        heapq.heappush(heap, (-weight, idx))
     return heap
 
 
@@ -270,7 +292,7 @@ def get_top_k(reviews, heap, review_indexes, k):
     for id, (ranksum, first, second, third) in dict_rankcount.items():
         heapq.heappush(heap_avgfirst, (ranksum, first, second, third))
         aids.append(id)
-    top_k = heapq.nsmallest(min(k, len(heap_avgfirst)), heap_avgfirst)
+    top_k = heapq.nlargest(min(k, len(heap_avgfirst)), heap_avgfirst)
     results = "\n"
     for (ranksum, first, second, third) in top_k:
         if first != -1:
@@ -341,7 +363,7 @@ def generate(nationality, types, star, ski, beach, center, score, guest_type, gu
     # Filtering the embedding:
     embedding, review_indexes = embedder_filtering(embedding_primary, id_to_reviews, accommodations, nationality, types, star, ski, beach, center, score)
     dimension = embedding.shape[1]
-    index = faiss.IndexFlatL2(dimension)
+    index = faiss.IndexFlatIP(dimension)
     index.add(embedding)
     # Turn the input of user into vector for the following search phase:
     query_embedding = embedder.encode(payload)
