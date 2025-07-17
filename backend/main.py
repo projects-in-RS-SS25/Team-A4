@@ -16,7 +16,7 @@ from flask import Flask, jsonify, request, render_template
 from flask_cors import CORS
 
 app = Flask(__name__)
-CORS(app)
+CORS(app, resources={r"/*": {"origins": "*"}}, supports_credentials=True)
 base_dir = os.path.dirname(os.path.abspath(__file__))
 absa_model = SentenceTransformer('paraphrase-multilingual-MiniLM-L12-v2')
 absa_extractor = ATEPCCheckpointManager.get_aspect_extractor(checkpoint='multilingual')
@@ -423,6 +423,6 @@ def recommend():
 
 
 if __name__ == '__main__':
-    generate(None, ["Resort"], -1, -1, -1, -1, -1, None, None, -1,-1,
-             "I want to live in a Resort, which is with an elevator, with interesting activities, and with nice service.")
-    #app.run(host="0.0.0.0", port=5001)
+    # generate(None, ["Resort"], -1, -1, -1, -1, -1, None, None, -1,-1,
+             # "I want to live in a Resort, which is with an elevator, with interesting activities, and with nice service.")
+    app.run(host="0.0.0.0", port=5001)
