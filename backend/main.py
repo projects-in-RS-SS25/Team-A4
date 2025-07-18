@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from utils.generate import generate, RecommendationRequest
+from backend.utils.generate import generate, RecommendationRequest
 from flask import Flask, request
 from flask_cors import CORS
 
@@ -10,14 +10,12 @@ CORS(app, resources={r"/*": {"origins": "*"}}, supports_credentials=True)
 
 @app.route('/recommend', methods=['POST'])
 def recommend():
+    '''
     data = request.get_json()
     req = RecommendationRequest(**data)
     return generate(req)
-
+    '''
+    return 'Hi'
 
 if __name__ == '__main__':
-    """
-    generate(None, ["Resort"], -1, -1, -1, -1, -1, None, None, -1,-1,
-    "I want to live in a Resort, which is with an elevator, with interesting activities, and with nice service.")
-    """
     app.run(host="0.0.0.0", port=5001)

@@ -1,6 +1,6 @@
 import os
 import pandas as pd
-from app_config import base_dir
+from backend.app_config import base_dir
 
 def triplet_table(input_csv=os.path.join(base_dir, 'data', 'train.csv'), gc_csv=os.path.join(base_dir, 'data', 'guest_country_accommodation.csv'), gt_csv=os.path.join(base_dir, 'data', 'guest_type_accommodation.csv')):
     if os.path.exists(gc_csv) and os.path.exists(gt_csv):

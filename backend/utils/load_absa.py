@@ -1,17 +1,35 @@
 import os
-import pickle
-import pandas as pd
-from app_config import base_dir, aspects_const
+import json
+from backend.app_config import base_dir
+import numpy as np
 
-def load_absa(dataset_path=os.path.join(base_dir, 'data', 'ABSA_results.csv'), sep = "㏦", cache_path=os.path.join(base_dir, 'data', "absa.pkl")):
-    if os.path.exists(cache_path):
-        with open(cache_path, "rb") as f:
-            absa = pickle.load(f)
-    else:
-        if os.path.exists(dataset_path):
-            df_absa = pd.read_csv(dataset_path, sep=sep)
-            absa = df_absa[aspects_const].values.tolist()
-            with open(cache_path, 'wb') as f:
-                pickle.dump(absa, f)
-        else: return None
-    return absa
+def load_absa(result_path=os.path.join(base_dir, 'data', 'cleaned_absa_results.jsonl'), clusters_path=os.path.join(base_dir, 'data', 'clusters.json'), labels_path=os.path.join(base_dir, 'data', 'aspect_labels.json')):
+    try:
+        with open(clusters_path, 'r', encoding='utf-8') as f:
+            clusters = json.load(f)
+    except Exception as e:
+        return None,None,None,None
+    try:
+        with open(labels_path, 'r', encoding='utf-8') as f:
+            aspect_labels = json.load(f)
+    except Exception as e:
+        return None,None,None,None
+    absa_results = []
+    try:
+        with open(result_path, 'r', encoding='utf-8') as f:
+            for line_num, line in enumerate(f):
+                line = line.strip()
+                if line:
+                    try:
+                        item = json.loads(line)
+                        absa_results.append(item)
+                    except json.JSONDecodeError as e:
+                        return None,None,None,None
+    except Exception as e:
+        return None,None,None,None
+    cluster_vectors = []
+    for label in clusters.keys():
+        center_vector = clusters[label]["center_embedding"]
+        cluster_vectors.append(np.array(center_vector))
+    print('absa load success')
+    return absa_results,clusters,aspect_labels,cluster_vectors

@@ -1,15 +1,14 @@
 import os
 import numpy as np
-import faiss
+#import faiss
+from annoy import AnnoyIndex
 import ollama
 from sentence_transformers import SentenceTransformer
 from .load_reviews import load_reviews
-from .load_aspect_vectors import load_aspect_vectors
 from .load_embedding import load_embedding
 from .get_relation import get_relation
 from .load_absa import load_absa
 from .embedder_filtering import embedder_filtering
-from .calculate_absa_query import calculate_absa_query
 from .weight_calculation import weight_calculation
 from .get_top_k import get_top_k
 from .to_json import to_json
@@ -39,10 +38,9 @@ def generate(recommendation_request: RecommendationRequest):
     payload = recommendation_request.requirement
 
     reviews = load_reviews()
-    aspect_vectors = load_aspect_vectors()
     embedding_primary = load_embedding(embedder, reviews)
     id_to_reviews, accommodations = get_relation()
-    absa = load_absa()
+    absa_results,clusters,aspect_labels,cluster_vectors = load_absa()
 
     nationality = recommendation_request.accommodation_country
     types = recommendation_request.accommodation_type
@@ -58,20 +56,24 @@ def generate(recommendation_request: RecommendationRequest):
 
     embedding, review_indexes = embedder_filtering(embedding_primary, id_to_reviews, accommodations, nationality, types,
                                                    star, ski, beach, center, score)
-    dimension = embedding.shape[1]
-    index = faiss.IndexFlatIP(dimension)
-    index.add(embedding)
-
-    query_embedding = embedder.encode(payload)
-
     if len(review_indexes) == 0:
         print("No accommodation that fits your need found... So we can't give you any recommendation.")
         return
-
-    distances, indices = index.search(np.array([query_embedding]), len(review_indexes))
-    absa_vector = calculate_absa_query(payload, aspect_vectors)
+    dimension = embedding.shape[1]
+    embedding = np.ascontiguousarray(embedding)
+    annoy_index = AnnoyIndex(dimension, 'angular')
+    for i, vec in enumerate(embedding):
+        annoy_index.add_item(i, vec)
+    annoy_index.build(100)
+    query_embedding = embedder.encode(payload)
+    query_embedding = np.ascontiguousarray(query_embedding)
+    annoy_internal_indices, annoy_distances = annoy_index.get_nns_by_vector(
+        query_embedding, len(embedding), include_distances=True
+    )
+    distances = np.array([annoy_distances])
+    indices = np.array([annoy_internal_indices])
     heap = weight_calculation(indices[0], distances, reviews, review_indexes, guest_type, guest_country, months, nights,
-                              absa, absa_vector)
+                              absa_results,clusters,aspect_labels,cluster_vectors, payload)
     results, aids, rids = get_top_k(reviews, heap, review_indexes, min(5, len(review_indexes)))
 
     prompt = (
