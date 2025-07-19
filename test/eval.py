@@ -1,10 +1,13 @@
-import numpy as np
-import random
 from test.rag_filtering import generate_rf
 from test.rag_filtering_reranking import generate_rfr
 from test.rag_filtering_reranking_absa import generate_rfra
 from tqdm import tqdm
+from typing import List, Dict, Any
+import numpy as np
+import random
+from tqdm.asyncio import tqdm
 import ollama
+import asyncio
 async def ask_LLM(review: str, aspect: str) -> int:
     """
     Asks an LLM to determine if a review contains a specific aspect.
@@ -30,7 +33,17 @@ async def ask_LLM(review: str, aspect: str) -> int:
         print(f"\nError calling LLM for review '{review[:50]}...' and aspect '{aspect}': {e}")
         return 0
 
-def eval(seed):
+async def get_method_hits(reviews_list: List[str], aspects_to_check: List[str]) -> int:
+    tasks = []
+    for review_text in reviews_list:
+        for aspect in aspects_to_check:
+            tasks.append(ask_LLM(review_text, aspect))
+    if tasks:
+        hits = await asyncio.gather(*tasks)
+        return sum(hits)
+    return 0
+
+async def eval(seed: int):
     random.seed(seed)
     aspects = [
         "whose comfort is perfect", "with an enjoyable comfortable bed", "with lovely decoration", "have a nice view", "well cleaned",
@@ -60,19 +73,9 @@ def eval(seed):
                                      query)
         rfra_reviews, rfra_ids = generate_rfra(None, [at], -1, -1, -1, -1, -1, None, None, -1,-1,
                                      query)
-        rf_hit = rfr_hit = rfra_hit = 0
-        for review in rf_reviews:
-            rf_hit += ask_LLM(review, a1)
-            rf_hit += ask_LLM(review, a2)
-            rf_hit += ask_LLM(review, a3)
-        for review in rfr_reviews:
-            rfr_hit += ask_LLM(review, a1)
-            rfr_hit += ask_LLM(review, a2)
-            rfr_hit += ask_LLM(review, a3)
-        for review in rfra_reviews:
-            rfra_hit += ask_LLM(review, a1)
-            rfra_hit += ask_LLM(review, a2)
-            rfra_hit += ask_LLM(review, a3)
+        rf_hit = await get_method_hits(rf_reviews, [a1, a2, a3])
+        rfr_hit = await get_method_hits(rfr_reviews, [a1, a2, a3])
+        rfra_hit = await get_method_hits(rfra_reviews, [a1, a2, a3])
         rf_scores.append(rf_hit / rf_ids)
         rfr_scores.append(rfr_hit / rfr_ids)
         rfra_scores.append(rfra_hit / rfra_ids)
@@ -84,4 +87,4 @@ def eval(seed):
     print(f"mean hit per accommodation for rag with filtering + ranksum reranking + absa: {mean_rfra}")
 
 if __name__ == '__main__':
-    eval(81925)
+    asyncio.run(eval(81925))
