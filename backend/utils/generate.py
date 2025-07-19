@@ -1,6 +1,5 @@
 import os
 import numpy as np
-#import faiss
 from annoy import AnnoyIndex
 import ollama
 from sentence_transformers import SentenceTransformer

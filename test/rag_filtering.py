@@ -1,7 +1,10 @@
 from sentence_transformers import SentenceTransformer
-import faiss
+from annoy import AnnoyIndex
 import numpy as np
-from backend.main import load_embedding, load_reviews, get_relation, embedder_filtering
+from backend.utils.load_reviews import load_reviews
+from backend.utils.load_embedding import load_embedding
+from backend.utils.get_relation import get_relation
+from backend.utils.embedder_filtering import embedder_filtering
 
 def generate_rf(nationality, types, star, ski, beach, center, score, guest_type, guest_country, months, nights, requirement):
     # Multithreading, in order to accelerate the embedding process:
@@ -17,19 +20,20 @@ def generate_rf(nationality, types, star, ski, beach, center, score, guest_type,
     # Filtering the embedding:
     embedding, review_indexes = embedder_filtering(embedding_primary, id_to_reviews, accommodations, nationality, types, star, ski, beach, center, score)
     dimension = embedding.shape[1]
-    index = faiss.IndexFlatIP(dimension)
-    index.add(embedding)
-    # Turn the input of user into vector for the following search phase:
+    annoy_index = AnnoyIndex(dimension, 'angular')
+    for i, vec in enumerate(embedding):
+        annoy_index.add_item(i, vec)
+    annoy_index.build(100)
     query_embedding = embedder.encode(payload)
-    # Find the 5 most similar or all reviews comparing with the input of user and use as the given data for LLM:
-    if len(review_indexes) == 0:
-        print("No accommodation that fits your need found... So we can't give you any recommendation.")
-        return
-    distances, indices = index.search(np.array([query_embedding]), len(review_indexes))
-    top_k = min(15, len(review_indexes))
-    topk_indices = indices[0][:top_k]
-    topk_reviews = [reviews[review_indexes[idx]] for idx in topk_indices]
-    results = "\n"
+    query_embedding = np.ascontiguousarray(query_embedding)
+    annoy_internal_indices, annoy_distances = annoy_index.get_nns_by_vector(
+        query_embedding, len(embedding), include_distances=True
+    )
+    k = min(15, len(annoy_internal_indices))
+    top_k_annoy_indices = annoy_internal_indices[:k]
+    indices = np.array([top_k_annoy_indices])
+    topk_reviews = [reviews[i] for i in indices[0]]
+    results = []
     for result in topk_reviews:
-        results = results + f"Accommodation ID: {result['accommodation_id']} Review: {result['full_text']}\n"
+        results.append(f"Accommodation ID: {result['accommodation_id']} Review: {result['full_text']}\n")
     return results
