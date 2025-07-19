@@ -40,7 +40,7 @@ def eval(seed):
     rfr_scores = []
     rfra_scores = []
     num_queries = 50 #Could change the numbers of querys here
-    for _ in tqdm(range(num_queries), desc="Generating test data... "):
+    for _ in tqdm(range(num_queries), desc="making evaluation"):
         at = random.choice(acc_types)
         a1, a2, a3 = random.sample(aspects, 3)
         query = f"I want to live in a {at}, which is {a1}, {a2}, and {a3}." if random.random() >= 0.5 else f"Please recommend me a {at}, which is {a1}, {a2}, and {a3}."
