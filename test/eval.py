@@ -5,21 +5,31 @@ from test.rag_filtering_reranking import generate_rfr
 from test.rag_filtering_reranking_absa import generate_rfra
 from tqdm import tqdm
 import ollama
-def ask_LLM(review, aspect):
+async def ask_LLM(review: str, aspect: str) -> int:
+    """
+    Asks an LLM to determine if a review contains a specific aspect.
+    Returns 1 if related, 0 if not.
+    """
     prompt = (f"You are a professional emotional dimension analyst. Your task is to analyse whether this review contains the aspect I mentioned. If it is mentioned, please return 1. Otherwise, please return 0.\n"
               f"The review is: {review}\n"
               f"The aspect we care about is: {aspect}\n"
               f"Your response MUST be ONLY '1' or '0'. Do NOT include any other text, explanations, or punctuation.\n")
-    response = ollama.chat(model='llama3.1:8b', messages=[
-        {
-            'role': 'user',
-            'content': prompt
-        },
-    ])
-    if "1" in response['message']['content']:
-        return 1
-    else:
+    try:
+        response = await ollama.chat(model='llama3.1:8b', messages=[ # Use await for async call
+            {
+                'role': 'user',
+                'content': prompt
+            },
+        ])
+        content = response['message']['content'].strip()
+        if "1" in content:
+            return 1
+        else:
+            return 0
+    except Exception as e:
+        print(f"\nError calling LLM for review '{review[:50]}...' and aspect '{aspect}': {e}")
         return 0
+
 def eval(seed):
     random.seed(seed)
     aspects = [

@@ -71,4 +71,4 @@ def generate_rfra(nationality, types, star, ski, beach, center, score, guest_typ
     heap = weight_calculation(indices[0], distances, reviews, review_indexes, guest_type, guest_country, months, nights,
                               absa_results,clusters,aspect_labels,cluster_vectors, payload)
     results, aids, rids = get_top_k(reviews, heap, review_indexes, min(5, len(review_indexes)))
-    return results, len(aids)
+    return results, min(5, len(review_indexes))
