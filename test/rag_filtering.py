@@ -33,7 +33,10 @@ def generate_rf(nationality, types, star, ski, beach, center, score, guest_type,
     top_k_annoy_indices = annoy_internal_indices[:k]
     indices = np.array([top_k_annoy_indices])
     topk_reviews = [reviews[i] for i in indices[0]]
+    ids = []
     results = []
     for result in topk_reviews:
         results.append(f"Accommodation ID: {result['accommodation_id']} Review: {result['full_text']}\n")
-    return results
+        if result['accommodation_id'] not in ids:
+            ids.append(result['accommodation_id'])
+    return results, len(ids)

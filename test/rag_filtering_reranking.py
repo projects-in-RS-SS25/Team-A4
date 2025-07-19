@@ -96,4 +96,4 @@ def generate_rfr(nationality, types, star, ski, beach, center, score, guest_type
     indices = np.array([annoy_internal_indices])
     heap = weight_calculation(indices[0], distances, reviews, review_indexes, guest_type, guest_country, months, nights)
     results, aids, rids= get_top_k(reviews, heap, review_indexes, min(5, len(review_indexes)))
-    return results
+    return results, aids
