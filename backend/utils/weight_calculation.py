@@ -43,7 +43,7 @@ def weight_calculation(indices, distances, reviews, review_indexes, guest_type, 
                 aspects_cleaned.append(cluster_id)
                 sentiments_cleaned.append(sentiments_requirement[idx])
     for i, idx in enumerate(indices):
-        similarity = 1 - (distances[0][i] / 2)  # from angular to cosine
+        similarity = 2 - (distances[0][i] / 2)  # from angular to cosine
         helpful_votes = reviews[review_indexes[idx]]['helpful']
         log_scaled_helpful = 0.25 * math.log10(1 + helpful_votes) / math.log10(1 + 91)
         country_factor = 0 if guest_country_relation == 0 else ((gc[(gc['guest_country'] == guest_country) & (
