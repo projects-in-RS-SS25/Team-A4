@@ -1,4 +1,4 @@
-import React from "react";
+import React, {useState} from "react";
 import {
   Card,
   Form,
@@ -8,6 +8,7 @@ import {
   Button,
   InputNumber,
   Divider,
+  Spin
 } from "antd";
 
 const { Item: FormItem } = Form;
@@ -24,6 +25,8 @@ const { TextArea } = Input;
 
 const Home = () => {
   const [form] = Form.useForm();
+  const [loading, setLoading] = useState(false);
+  const [result, setResult] = useState(null);
 
   async function onFinish(values: any) {
 
@@ -44,6 +47,7 @@ const Home = () => {
     };
 
     try {
+      setLoading(true);
       const response = await fetch("http://127.0.0.1:5001/recommend", {
         method: "POST",
         headers: {
@@ -58,12 +62,14 @@ const Home = () => {
 
       const data = await response.json();
       console.log("Recommendation response:", data);
-      alert("Recommendation fetched successfully! Check the console.");
+      setResult(data);
     } catch (error) {
       console.error("Error fetching recommendation:", error);
       alert("Error fetching recommendation. Check the console for details.");
+    } finally {
+      setLoading(false);
     }
-  };
+  }
 
   return (
     <div
@@ -84,7 +90,6 @@ const Home = () => {
           borderRadius: "12px",
           padding: 0,
         }}
-        bodyStyle={{ padding: "1.5rem" }}
       >
         <h2 className="text-center mb-2 text-[1.8rem] text-[#1677ff]">
           😊 Plan Your Stay
@@ -96,10 +101,58 @@ const Home = () => {
             color: "#555",
           }}
         >
-          Fill in your preferences below to get personalized accommodation
-          recommendations.
-        </p>
+          {loading ? (
+          "Loading..."
+          ) : result ? (
+          "The recommendation result is below!"
+          ) : (
+          "Fill in your preferences below to get personalized accommodation recommendations."
+          )}
 
+        </p>
+        {loading ? (
+          <div style={{ textAlign: "center", padding: "2rem" }}>
+            <Spin tip="Waiting for the LLM to generate answer..." size="large" />
+          </div>
+        ) : result ? (
+          <div>
+            <Card title="Our recommendation:">{result.response}</Card>
+            <Divider>Relevant reviews</Divider>
+            {result.target_reviews?.map((review: any, i: any) => (
+              <Card key={i} title={review.title}>
+                <p>
+                  <b>Accommodation ID: </b>
+                  {review.accommodation_id}
+                </p>
+                <p>
+                  <b>Pro: </b>
+                  {review.pro}
+                </p>
+                <p>
+                  <b>Contra: </b>
+                  {review.contra}
+                </p>
+              </Card>
+            ))}
+            <Divider>Other reviews</Divider>
+            {result.other_reviews?.map((review: any, i: any) => (
+              <Card key={i} title={review.title}>
+                <p>
+                  <b>Accommodation ID: </b>
+                  {review.accommodation_id}
+                </p>
+                <p>
+                  <b>Pro: </b>
+                  {review.pro}
+                </p>
+                <p>
+                  <b>Contra: </b>
+                  {review.contra}
+                </p>
+              </Card>
+            ))}
+          </div>
+        ) : (
         <Form
           form={form}
           layout="vertical"
@@ -221,6 +274,7 @@ const Home = () => {
             </Button>
           </FormItem>
         </Form>
+        )}
       </Card>
     </div>
   );
