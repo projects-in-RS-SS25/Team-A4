@@ -8,7 +8,9 @@ import {
   Button,
   InputNumber,
   Divider,
-  Spin
+  Spin,
+  Row,
+  Col
 } from "antd";
 
 const { Item: FormItem } = Form;
@@ -71,6 +73,8 @@ const Home = () => {
     }
   }
 
+  // @ts-ignore
+  // @ts-ignore
   return (
     <div
       style={{
@@ -82,9 +86,10 @@ const Home = () => {
         padding: "2rem",
       }}
     >
+      <Row justify="center" style={{ width: "100%" }}>
+    <Col xs={24} sm={22} md={18} lg={14} xl={12} xxl={10}>
       <Card
         style={{
-          maxWidth: 500,
           width: "100%",
           boxShadow: "0 8px 24px rgba(0,0,0,0.15)",
           borderRadius: "12px",
@@ -276,6 +281,8 @@ const Home = () => {
         </Form>
         )}
       </Card>
+      </Col>
+    </Row>
     </div>
   );
 };
