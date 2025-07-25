@@ -1,8 +1,8 @@
 import os
 import numpy as np
 from sentence_transformers import SentenceTransformer
-from backend.app_config import base_dir
-from backend.utils.load_reviews import load_reviews
+from app_config import base_dir
+from utils.load_reviews import load_reviews
 
 def load_embedding(embedder, reviews, cache_path=os.path.join(base_dir, 'data', "embedding.npy")):
     if os.path.exists(cache_path):

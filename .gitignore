@@ -178,3 +178,4 @@ cython_debug/
 /.idea/inspectionProfiles/Project_Default.xml
 /.idea/.gitignore
 /backend/data/
+/backend/checkpoints/

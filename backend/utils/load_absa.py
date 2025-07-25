@@ -1,6 +1,6 @@
 import os
 import json
-from backend.app_config import base_dir
+from app_config import base_dir
 import numpy as np
 
 def load_absa(result_path=os.path.join(base_dir, 'data', 'cleaned_absa_results.jsonl'), clusters_path=os.path.join(base_dir, 'data', 'clusters.json'), labels_path=os.path.join(base_dir, 'data', 'aspect_labels.json')):

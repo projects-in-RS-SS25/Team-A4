@@ -3,7 +3,7 @@ import heapq
 import numpy as np
 from .triplet_table import triplet_table
 from .categorize_nights import categorize_nights
-from backend.app_config import *
+from app_config import *
 
 def weight_calculation(indices, distances, reviews, review_indexes, guest_type, guest_country, months, nights, absa_results, clusters, aspect_labels, cluster_vectors, requirement):
     global aspects_cleaned, sentiments_cleaned
