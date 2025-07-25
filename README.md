@@ -133,6 +133,6 @@ cd ..
 Windows: $env:MOCK_MODE="true"; python main.py
 Mac: MOCK_MODE=false python main.py
 
-# Now the iterative travel recommendation logic should work 😊
+# Now the iterative travel recommendation logic should work 
 
 
