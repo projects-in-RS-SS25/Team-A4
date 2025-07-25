@@ -51,13 +51,13 @@ A modern and reactive web interface where users interact with the system.
 
 ## Key Features
 
-✅ **Natural Language Understanding** — Handles complex queries like *"family-friendly hotel near a pool."*  
-✅ **Multi-faceted Filtering** — Combines structured + semantic filters.  
-✅ **Context-Aware Recommendations** — Uses guest type, travel time, and user history.  
-✅ **Aspect-Based Sentiment Analysis (ABSA)** — Focuses on aspects like cleanliness, staff, location.  
-✅ **Behavioral Persona Integration** — Uses historical booking patterns for personalization.  
-✅ **Explainable AI (XAI)** — Explains why a hotel is recommended.  
-✅ **Interactive UI** — Built with `React` + `Ant Design` for easy, intuitive use.
+**Natural Language Understanding** — Handles complex queries like *"family-friendly hotel near a pool."*  
+**Multi-faceted Filtering** — Combines structured + semantic filters.  
+**Context-Aware Recommendations** — Uses guest type, travel time, and user history.  
+**Aspect-Based Sentiment Analysis (ABSA)** — Focuses on aspects like cleanliness, staff, location.  
+**Behavioral Persona Integration** — Uses historical booking patterns for personalization.  
+**Explainable AI (XAI)** — Explains why a hotel is recommended.  
+**Interactive UI** — Built with `React` + `Ant Design` for easy, intuitive use.
 
 ---
 
