@@ -1,3 +1,5 @@
+// noinspection ExceptionCaughtLocallyJS
+
 import React, {useState} from "react";
 import {
   Card,
@@ -21,7 +23,7 @@ import {
   guestTypes,
   guestCountries,
   months,
-} from "../consts";
+} from "~/consts";
 
 const { TextArea } = Input;
 
@@ -74,7 +76,6 @@ const Home = () => {
   }
 
   // @ts-ignore
-  // @ts-ignore
   return (
     <div
       style={{
@@ -122,7 +123,7 @@ const Home = () => {
         ) : result ? (
           <div>
             <Card title="Our recommendation:">{result.response}</Card>
-            <Divider>Relevant reviews</Divider>
+            <Divider>Relevant Reviews</Divider>
             {result.target_reviews?.map((review: any, i: any) => (
               <Card key={i} title={review.title}>
                 <p>
@@ -139,7 +140,7 @@ const Home = () => {
                 </p>
               </Card>
             ))}
-            <Divider>Other reviews</Divider>
+            <Divider>Other Reviews</Divider>
             {result.other_reviews?.map((review: any, i: any) => (
               <Card key={i} title={review.title}>
                 <p>
@@ -156,6 +157,16 @@ const Home = () => {
                 </p>
               </Card>
             ))}
+            {result.next_cities_suggestion && (
+                <>
+                  <Divider>🧭 Suggested Next Cities for Itinerary</Divider>
+                  <Card>
+                    <pre style={{ whiteSpace: "pre-wrap", fontFamily: "inherit" }}>
+                      {result.next_cities_suggestion}
+                    </pre>
+                  </Card>
+                </>
+            )}
           </div>
         ) : (
         <Form

@@ -1,17 +1,16 @@
 import os
-import numpy as np
-from annoy import AnnoyIndex
-import ollama
-from sentence_transformers import SentenceTransformer
-from .load_reviews import load_reviews
-from .load_embedding import load_embedding
-from .get_relation import get_relation
-from .load_absa import load_absa
-from .embedder_filtering import embedder_filtering
-from .weight_calculation import weight_calculation
-from .get_top_k import get_top_k
-from .to_json import to_json
 from pydantic import BaseModel
+from cityExperimentation.nextCityRecommendation import (
+    get_city_for_accommodation,
+    predict_city_count,
+    suggest_next_cities
+)
+import numpy as np
+import ollama
+
+
+MOCK_MODE = os.environ.get("MOCK_MODE", "False").lower() == "true"
+base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
 class RecommendationRequest(BaseModel):
@@ -29,17 +28,78 @@ class RecommendationRequest(BaseModel):
     requirement: str
 
 
-base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-
 
 def generate(recommendation_request: RecommendationRequest):
+
+    if MOCK_MODE:
+        accommodation_id = -1955434893
+        city = get_city_for_accommodation(accommodation_id)
+        predicted_city_count = predict_city_count(
+            recommendation_request.nights,
+            recommendation_request.months
+        )
+        next_city_count = predicted_city_count - 1
+
+        next_city_suggestion = suggest_next_cities(
+            accommodation_id=accommodation_id,
+            country=recommendation_request.accommodation_country,
+            city=city,
+            guest_type=recommendation_request.guest_type,
+            center=recommendation_request.center,
+            beach=recommendation_request.beach,
+            ski=recommendation_request.ski,
+            month=recommendation_request.months,
+            nights=recommendation_request.nights,
+            requirement=recommendation_request.requirement,
+            next_city_count=next_city_count
+        )
+
+        return {
+            "response": f"Accommodation ID: {accommodation_id} in {city}."
+                        f" Recommendation: This place fits your preferences very well.",
+
+            "target_reviews": [
+                {
+                    "title": "Great location!",
+                    "accommodation_id": accommodation_id,
+                    "pro": "Very close to the city center and clean rooms.",
+                    "contra": "Breakfast was average."
+                }
+            ],
+
+            "other_reviews": [
+                {
+                    "title": "Nice Budget Option",
+                    "accommodation_id": accommodation_id,
+                    "pro": "Affordable and friendly staff.",
+                    "contra": "A bit noisy at night."
+                },
+
+            ],
+            "starting_city": city,
+            "city_count": predicted_city_count,
+            "next_cities_suggestion": next_city_suggestion,
+        }
+
+
+    from annoy import AnnoyIndex
+    from sentence_transformers import SentenceTransformer
+    from .load_reviews import load_reviews
+    from .load_embedding import load_embedding
+    from .get_relation import get_relation
+    from .load_absa import load_absa
+    from .embedder_filtering import embedder_filtering
+    from .weight_calculation import weight_calculation
+    from .get_top_k import get_top_k
+    from .to_json import to_json
+
     embedder = SentenceTransformer("all-MiniLM-L6-v2")
     payload = recommendation_request.requirement
 
     reviews = load_reviews()
     embedding_primary = load_embedding(embedder, reviews)
     id_to_reviews, accommodations = get_relation()
-    absa_results,clusters,aspect_labels,cluster_vectors = load_absa()
+    absa_results, clusters, aspect_labels, cluster_vectors = load_absa()
 
     nationality = recommendation_request.accommodation_country
     types = recommendation_request.accommodation_type
@@ -58,6 +118,7 @@ def generate(recommendation_request: RecommendationRequest):
     if len(review_indexes) == 0:
         print("No accommodation that fits your need found... So we can't give you any recommendation.")
         return
+
     dimension = embedding.shape[1]
     embedding = np.ascontiguousarray(embedding)
     annoy_index = AnnoyIndex(dimension, 'angular')
@@ -72,7 +133,7 @@ def generate(recommendation_request: RecommendationRequest):
     distances = np.array([annoy_distances])
     indices = np.array([annoy_internal_indices])
     heap = weight_calculation(indices[0], distances, reviews, review_indexes, guest_type, guest_country, months, nights,
-                              absa_results,clusters,aspect_labels,cluster_vectors, payload)
+                              absa_results, clusters, aspect_labels, cluster_vectors, payload)
     results, aids, rids = get_top_k(reviews, heap, review_indexes, min(5, len(review_indexes)))
 
     prompt = (
@@ -101,3 +162,6 @@ def generate(recommendation_request: RecommendationRequest):
     json_result = to_json(reviews, review_indexes, rids, aids, response)
     print(json_result)
     return json_result
+
+
+

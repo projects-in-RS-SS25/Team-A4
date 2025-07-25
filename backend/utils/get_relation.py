@@ -2,7 +2,7 @@ from collections import defaultdict
 import os
 import pickle
 import pandas as pd
-from backend.app_config import base_dir
+from app_config import base_dir
 
 def get_relation(dataset_path=os.path.join(base_dir, 'data', 'train.csv'), accommodations_path=os.path.join(base_dir, 'data', 'accommodations.csv'), cache_path=os.path.join(base_dir, 'data', "relations.pkl")):
     if os.path.exists(cache_path):
