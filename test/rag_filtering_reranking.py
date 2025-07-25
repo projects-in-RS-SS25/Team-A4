@@ -58,7 +58,7 @@ def weight_calculation(indices, distances, reviews, review_indexes, guest_type, 
         if guest_country_relation == guest_type_relation == 0:
             break
     for i, idx in enumerate(indices):
-        similarity = 2 - (distances[0][i] / 2)
+        similarity = 2 - (distances[0][i] ** 2 / 2)
         helpful_votes = reviews[review_indexes[idx]]['helpful']
         log_scaled_helpful = 0.25 * math.log10(1 + helpful_votes) / math.log10(1 + 91)
         country_factor = 0 if guest_country_relation == 0 else ((gc[(gc['guest_country'] == guest_country) & (gc["accommodation_id"] == reviews[review_indexes[idx]]["accommodation_id"])].iloc[0]['avg_score']) / 40)
