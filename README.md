@@ -86,6 +86,7 @@ Follow the steps below to run the project on your local machine.
 - Python 3.9+ and pip  
 - Node.js and npm  
 - **Ollama** installed, with `deepseek-r1:1.5b` model pulled locally:
+- You can download the files used in this project [here](https://drive.google.com/drive/folders/1ATE8GSgM6EZL2TjweCE3r6Ys3O5k4Opn?usp=drive_link). You need to put these files in `backend\data`.
   
 ```bash
 ollama pull deepseek-r1:1.5b
