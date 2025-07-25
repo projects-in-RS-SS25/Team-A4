@@ -99,7 +99,8 @@ cd backend/
 pip install -r requirements.txt
 
 # Start the Flask server (default port: 5001)
-python main.py
+Windows: $env:MOCK_MODE="false"; python main.py
+Mac: MOCK_MODE=false python main.py
 
 2. Frontend Setup
 
@@ -113,3 +114,25 @@ npm install
 npm run dev
 
 The app will be available at → http://localhost:5173 (or another port assigned by Vite).
+
+3. Next City Recommendation (In MockMode)
+
+# Navigating 
+cd backend\cityExperimentation
+
+# Building the accomodation_cities.csv 
+python matchingEngine.py
+
+# Running the regression model
+python cityCountEstimator.py
+
+# Navigating
+cd ..
+
+# Running the server on MockMode
+Windows: $env:MOCK_MODE="true"; python main.py
+Mac: MOCK_MODE=false python main.py
+
+# Now the iterative travel recommendation logic should work 😊
+
+
